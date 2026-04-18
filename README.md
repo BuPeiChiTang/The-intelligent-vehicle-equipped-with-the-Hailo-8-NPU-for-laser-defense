@@ -1,8 +1,5 @@
 # The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense
 an intelligent vehicle system for real-time laser combat with autonomous navigation, target recognition, tracking, and precision laser striking.
-# The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense
-
-an intelligent vehicle system for real-time laser combat with autonomous navigation, target recognition, tracking, and precision laser striking.
 
 
 
