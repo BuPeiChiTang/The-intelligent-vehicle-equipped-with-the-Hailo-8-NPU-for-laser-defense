@@ -1,0 +1,442 @@
+'''
+实现功能：
+    检测绿灯
+    串口通信
+    模型检测
+    打击时间检测
+'''
+#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
+import numpy as np
+#from loguru import logger
+import queue
+import threading
+import cv2
+#from typing import List
+from object_detection_utils_final import ObjectDetectionUtils
+import time
+# Add the parent directory to the system path to access utils module
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils import HailoAsyncInference
+import serial
+# 定义全局退出标志,防止终端运行卡死
+exit_event = threading.Event()
+#绿灯检测函数
+def detect_green_light(frame, area_thresh=(10, 200), brightness_thresh=220):
+    """
+    检测图像中是否有小而亮的绿色区域（绿灯），返回mask和检测结果
+    area_thresh: (min_area, max_area)
+    brightness_thresh: 只认非常亮的绿色
+    """
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_green = np.array([40, 80, 80])
+    upper_green = np.array([80, 255, 255])
+    mask = cv2.inRange(hsv, lower_green, upper_green)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    detected = False
+    max_brightness = 0
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < area_thresh[0] or area > area_thresh[1]:
+            continue
+        x1, y1, w1, h1 = cv2.boundingRect(cnt)
+        roi_mask = mask[y1:y1+h1, x1:x1+w1]
+        roi_v = hsv[y1:y1+h1, x1:x1+w1, 2]
+        if np.any(roi_mask > 0):
+            roi_max_brightness = roi_v[roi_mask > 0].max()
+            max_brightness = max(max_brightness, roi_max_brightness)
+            if roi_max_brightness > brightness_thresh:
+                detected = True
+                break
+    return detected, mask, max_brightness
+#绿灯检测线程
+class GreenLightWatcher(threading.Thread):
+    def __init__(self, green_event):
+        super().__init__()
+        self.green_event = green_event
+        self.frame_queue = queue.Queue(maxsize=1)
+        self.daemon = True
+
+    def run(self):
+        while not self.green_event.is_set():
+            try:
+                frame = self.frame_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            detected, _, max_brightness = detect_green_light(frame)
+            print(f"[绿灯检测] 最大亮度: {max_brightness}, 检测结果: {detected}")
+            if detected:
+                print("检测到绿灯，发出信号！")
+                self.green_event.set()
+                break
+        # 线程退出后自动释放CPU
+
+        #摄像头读取分发线程
+def camera_dispatch_thread_func(cap, green_event, green_watcher, exit_event):
+    while not exit_event.is_set():
+        ret, frame = cap.read()
+        if not ret:
+            print("无法读取摄像头帧")
+            exit_event.set()
+            break
+        # 只要绿灯没检测到就送frame给绿灯检测线程
+        if not green_event.is_set() and green_watcher.is_alive():
+            if green_watcher.frame_queue.full():
+                try:
+                    green_watcher.frame_queue.get_nowait()
+                except queue.Empty:
+                    pass
+            try:
+                green_watcher.frame_queue.put_nowait(frame.copy())
+            except queue.Full:
+                pass
+        # 你可以在这里加更多分发逻辑
+        time.sleep(0.005)
+
+#串口通信部分
+def serial_communication(serial_port: str, baud_rate: int, data_queue: queue.Queue, send_queue: queue.Queue, exit_event: threading.Event) -> None:
+    """
+    Handle serial communication with the lower machine.
+
+    Args:
+        serial_port (str): Serial port name (e.g., '/dev/ttyUSB0').
+        baud_rate (int): Baud rate for the serial communication.
+        data_queue (queue.Queue): Queue for receiving data from the lower machine.
+        send_queue (queue.Queue): Queue for sending data to the lower machine.
+        exit_event (threading.Event): Event to signal thread exit.
+    """
+    try:
+        ser = serial.Serial(serial_port, baud_rate, timeout=1)
+        print(f"串口 {serial_port} 已打开，波特率 {baud_rate}")
+    except Exception as e:
+        print(f"无法打开串口 {serial_port}: {e}")
+        return
+
+    last_send_time = 0
+    send_interval = None
+
+    while not exit_event.is_set():
+        try:
+            # 接收数据
+            if ser.in_waiting > 0:
+                received_bytes = ser.readline()
+                try:
+                    received_str = received_bytes.decode('utf-8').strip()
+                    print(f"接收到字符串: {received_str}")
+                    if received_str.startswith('B'):
+                        print("检测到过线信号！")
+                except Exception as e:
+                    print(f"解码串口数据出错: {e}")
+                #bits = ''.join(f'{byte:08b}' for byte in received_bytes)
+                #print(bits)
+
+            # 每50ms尝试发送一次
+            now = time.time()
+            if (now - last_send_time) >= 0.05:
+                latest_data = None
+                # 取出send_queue中最新的数据并清空队列
+                try:
+                    while True:
+                        latest_data = send_queue.get_nowait()
+                except queue.Empty:
+                    pass
+
+                # 如果队列中没有数据，发送默认值
+                if latest_data is None:
+                    latest_data = "320,240,0,0\n"
+
+                ser.write(f"A{latest_data}\n".encode('utf-8'))
+                if last_send_time != 0:
+                    send_interval = now - last_send_time
+                    #print(f"本次有效数据发送间隔: {send_interval:.4f} 秒")
+                #print(f"发送数据: A{latest_data}")
+                last_send_time = now
+
+            time.sleep(0.01)
+        except Exception as e:
+            print(f"串口通信错误: {e}")
+            break
+
+   
+
+    ser.close()
+    print("串口已关闭")
+#预处理部分
+def preprocess_from_cap(cap: cv2.VideoCapture, 
+                        batch_size: int, 
+                        input_queue: queue.Queue, 
+                        model_width: int, 
+                        model_height: int, 
+                        utils: ObjectDetectionUtils) -> None:
+    """
+    Process frames from the camera stream and enqueue them.
+
+    Args:
+        batch_size (int): Number of images per batch.
+        input_queue (queue.Queue): Queue for input images.
+        width (int): Model input width.
+        height (int): Model input height.
+        utils (ObjectDetectionUtils): Utility class for object detection preprocessing.
+    """
+    frames = []
+    processed_frames = []
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frames.append(frame)
+        processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        processed_frame = utils.preprocess(processed_frame, model_width, model_height)
+        processed_frames.append(processed_frame)
+
+        if len(frames) == batch_size:
+            input_queue.put((frames, processed_frames))#在ｑｕｅｕｅ里加入原始帧和预处理帧
+            processed_frames, frames = [], []
+#后处理函数
+def postprocess(output_queue: queue.Queue,
+                cap: cv2.VideoCapture,
+                save_stream_output: bool,
+                utils: ObjectDetectionUtils,
+                send_queue: queue.Queue,
+                exit_event: threading.Event,
+                green_event: threading.Event) -> None:
+    """
+    Process inference results and display or save output.
+
+    Args:
+        output_queue (queue.Queue): Queue for inference results.
+        cap (cv2.VideoCapture): Video capture object.
+        save_stream_output (bool): Whether to save the output stream.
+        utils (ObjectDetectionUtils): Utility class for postprocessing.
+        send_queue (queue.Queue): Queue for sending data to the lower machine.
+        exit_event (threading.Event): Event to signal thread exit.
+    """
+    image_id = 0
+    out = None
+    output_path = Path("output_images")  # Directory to save output images
+    img_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    img_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    prev_time = time.time()
+    fps = 0
+    hit_start_time = None
+    hit_duration = 0
+    WIN_TIME = 2.0  # 2秒
+    last_valid_hit_time = None
+    TOLERANCE = 0.2  # 容忍时间（秒）
+    
+    green_light_detected = False# 绿灯检测状态
+
+    while not exit_event.is_set():  # 检查退出标志
+        try:
+            
+            result = output_queue.get(timeout=1)  # 设置超时时间
+            if result is None:
+                break  # Exit the loop if sentinel value is received
+
+            original_frame, infer_results = result
+
+            if len(infer_results) == 1:
+                infer_results = infer_results[0]
+
+            detections = utils.extract_detections(infer_results, threshold=0.5)
+            # 默认无有效打击
+            valid_hit = False
+            
+            # 获取打击区框的中心坐标和宽高的一半
+            for idx, cls in enumerate(detections['detection_classes']):
+                if cls == 1:  # 假设类别 1 是打击区
+                    box = detections['detection_boxes'][idx]
+                    # 将归一化坐标转换为像素坐标
+                    y_min = int(box[0] * img_height)
+                    x_min = int(box[1] * img_width)
+                    y_max = int(box[2] * img_height)
+                    x_max = int(box[3] * img_width)
+
+                    center_x = (x_min + x_max) // 2
+                    center_y = (y_min + y_max) // 2
+                    half_width = (x_max - x_min) // 2
+                    half_height = (y_max - y_min) // 2
+                    # 判断点(308, 280)是否在打击区框内
+                    #print(f"检测框: x=({center_x - half_width},{center_x + half_width}), y=({center_y - half_height},{center_y + half_height})")
+                    #print(f"判断点: (308, 280)")
+                    if (center_x - half_width <= 308 <= center_x + half_width) and \
+                       (center_y - half_height <= 280 <= center_y + half_height):
+                        valid_hit = True
+                        break  # 只要有一个goal框包含该点即可
+   
+                    # 打印或保存结果
+                    #print(f"打击区中心坐标: ({center_x}, {center_y}), 半宽: {half_width}, 半高: {half_height}")
+
+                    # 将数据放入发送队列
+                    send_queue.put(f"{center_x},{center_y},{half_width},{half_height}")
+            # 有效打击计时
+            now = time.time()
+            # 只有绿灯信号为True时才允许计时
+            if green_event.is_set():
+                if valid_hit:
+                    if hit_start_time is None:
+                        hit_start_time = now
+                    last_valid_hit_time = now
+                    hit_duration = now - hit_start_time
+                else:
+                    if last_valid_hit_time is not None and (now - last_valid_hit_time) <= TOLERANCE:
+                        hit_duration = now - hit_start_time
+                    else:
+                        hit_start_time = None
+                        hit_duration = 0
+                        last_valid_hit_time = None
+        
+
+            frame_with_detections = utils.draw_detections(detections, original_frame)
+            # 绿灯检测提示
+            if not green_event.is_set():
+                cv2.putText(
+                    frame_with_detections,
+                    "Waiting for GREEN LIGHT...",
+                    (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2,
+                    (0, 255, 255),
+                    3,
+                    cv2.LINE_AA
+                )
+            else:
+                cv2.putText(
+                    frame_with_detections,
+                    "GREEN LIGHT DETECTED! START!",
+                    (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2,
+                    (0, 255, 0),
+                    3,
+                    cv2.LINE_AA
+                )
+
+            # 绘制打击区计时
+            cv2.putText(
+                frame_with_detections,
+                f"Hit Time: {hit_duration:.2f}s",
+                (10, 90),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 255) if not valid_hit else (0, 255, 0),
+                2,
+                cv2.LINE_AA
+            )
+
+            if hit_duration >= WIN_TIME:
+                cv2.putText(
+                    frame_with_detections,
+                    "WIN!",
+                    (200, 200),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    2,
+                    (0, 255, 0),
+                    4,
+                    cv2.LINE_AA
+                )
+                
+            # 计算帧率
+            current_time = time.time()
+            fps = 1 / (current_time - prev_time)
+            prev_time = current_time
+            cv2.putText(
+                frame_with_detections,
+                f"FPS: {fps:.2f}",
+                (10, 30),  # 显示位置
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,  # 字体大小
+                (0, 255, 0),  # 字体颜色
+                2,  # 字体粗细
+                cv2.LINE_AA
+            )
+
+            if cap is not None:
+                # Display output
+                cv2.imshow("Output", frame_with_detections)
+                if save_stream_output:
+                    out.write(frame_with_detections)
+            else:
+                cv2.imwrite(str(output_path / f"output_{image_id}.png"), frame_with_detections)
+
+            # Wait for key press "q"
+            image_id += 1
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                exit_event.set()  # 设置退出标志
+                break
+        except queue.Empty:
+            continue
+
+    if cap is not None and save_stream_output:
+        out.release()  # Release the VideoWriter object
+    output_queue.task_done()  # Indicate that processing is complete
+
+
+def main():
+    CAMERA_CAP_WIDTH = 640
+    CAMERA_CAP_HEIGHT = 480
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("无法打开摄像头")
+        sys.exit(1)
+    #cap.set(cv2.CAP_PROP_FPS, 60)  # Set FPS to 
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_CAP_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_CAP_HEIGHT)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+
+    #cap.set(cv2.CAP_PROP_FPS, 60)  # Set FPS to 
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"实际帧率: {actual_fps}")
+
+    HEF_PATH = "/home/pi/hailo-rpi5-examples/Hailo-Application-Code-Examples/runtime/hailo-8/python/object_detection/goal_car/yolov8nv2.hef"
+    labels_path = "/home/pi/hailo-rpi5-examples/Hailo-Application-Code-Examples/runtime/hailo-8/python/object_detection/goal_car/label.txt"
+    utils = ObjectDetectionUtils(labels_path)
+    batch_size = 1
+
+    input_queue = queue.Queue()
+    output_queue = queue.Queue()
+    send_queue = queue.Queue()
+    data_queue = queue.Queue()
+    exit_event = threading.Event()
+    # 创建绿灯检测事件
+    green_event = threading.Event()
+    green_watcher = GreenLightWatcher(green_event)
+    green_watcher.start()
+
+    preprocess_thread = threading.Thread(target=preprocess_from_cap, args=(cap, batch_size, input_queue, 640, 640, utils))
+    infer_thread = HailoAsyncInference(hef_path=HEF_PATH, input_queue=input_queue, output_queue=output_queue, batch_size=batch_size, send_original_frame=True)
+    post_thread = threading.Thread(target=postprocess, args=(output_queue, cap, False, utils, send_queue, exit_event, green_event))
+    serial_thread = threading.Thread(target=serial_communication, args=('/dev/ttyUSB0', 115200, data_queue, send_queue, exit_event))
+    camera_dispatch_thread = threading.Thread(target=camera_dispatch_thread_func, args=(cap, green_event, green_watcher, exit_event))
+    try:
+        print("Starting threads...")
+        preprocess_thread.start()
+        post_thread.start()
+        serial_thread.start()
+        camera_dispatch_thread.start()
+        infer_thread.run()
+        
+        # 等待线程结束
+            
+
+        preprocess_thread.join()
+        output_queue.put(None)  # Signal process thread to exit
+        post_thread.join()
+        serial_thread.join()
+        green_watcher.join()
+        camera_dispatch_thread.join()
+        infer_thread.join()
+    except Exception as e:
+        print(f"发生异常: {e}")
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        print("程序已正常退出")
+if __name__ == "__main__":
+        main()
