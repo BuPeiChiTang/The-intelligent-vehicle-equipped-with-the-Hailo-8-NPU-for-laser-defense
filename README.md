@@ -3,8 +3,8 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 # The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense
 
 an intelligent vehicle system for real-time laser combat with autonomous navigation, target recognition, tracking, and precision laser striking.
-# 内部结构图
-<img width="894" height="965" alt="0b3017bb6d15486a69f0ad36ad44d702" src="https://github.com/user-attachments/assets/dca3706c-63cc-47e5-8c28-728db691a867" />
+
+
 
 
 # 目录
@@ -32,6 +32,9 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 1.主控模块MCU：该模块采用 STM32 单片机，其作为光电智能小车的核心控制中心，负责管理和协调其余模块的正常运行，各单片机间通过串口通信连接。
 
 2.环境感知模块：该模块包含了测距模块，姿态与导航模块。测距模块采用超声波传感器，通过发送超声波并接受返回超声波测得小车位置；姿态与导航模块采用ICM20948，采集加速度、角速度、磁场数据，解算车体姿态角，计算运动轨迹。两模块所得数据互相矫正，共同作用得到更为准确的小车位置信息。
+
+内部结构
+<img width="894" height="965" alt="0b3017bb6d15486a69f0ad36ad44d702" src="https://github.com/user-attachments/assets/dca3706c-63cc-47e5-8c28-728db691a867" />
 
 3.驱动模块：TB6612电机驱动模块
 
