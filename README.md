@@ -53,6 +53,7 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 bash
 
 `source ./venv_hailo_rpi5_examples/bin/activate # 激活虚拟环境`
+
 `python  ./Raspi-code/mian.py #启动程序`
 
 ### 代码结构
