@@ -1,14 +1,12 @@
 # The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense
+
 an intelligent vehicle system for real-time laser combat with autonomous navigation, target recognition, tracking, and precision laser striking.
-
-
-
 
 # 目录
 
 1. 摘要
-3. 硬件系统组成
-4. 代码说明
+2. 硬件系统组成
+3. 代码说明
 
 # 摘要
 
@@ -16,7 +14,7 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 
 **系统由智能车部分和视觉装置部分组成。智能车部分包含主控模块、环境感知模块、驱动模块和电源模块。该部分主要运用了四元数算法，并结合磁场椭球拟合，对磁力计数据进行实时椭球校准，降低硬/软磁干扰，减少了偏航误差。驱动模块搭载串级PID算法，实现高精度运动控制。利用卡尔曼滤波，互补滤波等算法，改善数据平滑度，滤除噪声，提升数据解算的准确度。**
 
-**视觉装置部分由视觉识别部分与目标追踪打击部分构成。视觉识别部分将树莓派与Hailo8 NPU高性能张量计算单元结合，搭载yolov11n模型实现稳定90帧识别定位打击区贴纸；目标追踪打击部分由二维云台搭载优化后的PID算法实现40hz刷新率的精确打击**
+**视觉装置部分由视觉识别部分与目标追踪打击部分构成。视觉识别部分将树莓派与Hailo8 NPU高性能张量计算单元结合，搭载yolov11n模型实现稳定90帧识别定位打击区贴纸；目标追踪打击部分由二维云台搭载优化后的PID算法实现40hz刷新率的精确打击，利用激光雷达识别运动目标引导打击。**
 
 **整个系统采用多传感器融合、超声波测距、惯性导航运动计算、视觉硬件加速等方法，通过硬件加速、数据融合、算法优化等手段，得出了系统在动态目标识别、精准测距与打击等方面的良好结果，实现了高精准辨识、自动行驶和智能打击等功能，能准确避开障碍、正确快速识别目标打击对象并高效完成打击任务。**
 
@@ -28,17 +26,16 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 
 1.主控模块MCU：该模块采用 STM32 单片机，其作为光电智能小车的核心控制中心，负责管理和协调其余模块的正常运行，各单片机间通过串口通信连接。
 
-2.环境感知模块：该模块包含了测距模块，姿态与导航模块。测距模块采用超声波传感器，通过发送超声波并接受返回超声波测得小车位置；姿态与导航模块采用ICM20948，采集加速度、角速度、磁场数据，解算车体姿态角，计算运动轨迹。两模块所得数据互相矫正，共同作用得到更为准确的小车位置信息。
+2.环境感知模块：该模块包含了测距模块，感知模块，姿态与导航模块。测距模块采用超声波传感器，通过发送超声波并接受返回超声波测得小车位置；姿态与导航模块采用ICM20948，采集加速度、角速度、磁场数据，解算车体姿态角，计算运动轨迹。两模块所得数据互相矫正，共同作用得到更为准确的小车位置信息。
 
 3.驱动模块：TB6612电机驱动模块
 
 4.电源模块：采用 12V锂电池电源，为各模块提供稳定的电力支持，以确保系统正常运行。
 <img width="1095" height="612" alt="image" src="https://github.com/user-attachments/assets/07aeae36-f7c7-48b5-90b8-77e33de39353" />
 
-
 **（二）视觉装置部分**
 
-该部分由视觉识别部分与目标追踪打击部分构成。视觉识别部分主要由树莓派5，Hailo8 NPU和摄像头组成，搭载 YOLOv11n目标检测模型实现中场信号灯、敌对小车与打击区的识别与定位，其中模型推理和图像后处理由Hailo8 NPU实现硬件加速，保证高帧率、高实时性；目标追踪打击部分主要由二维云台与小功率激光模块组成，依据实时检测数据配合优化后的PID算法实现目标追踪、激光打击。视觉装置和智能车通过串口通信实现信息和状态的共享。
+该部分由视觉识别部分与目标追踪打击部分构成。视觉识别部分主要由树莓派5，Hailo8 NPU和摄像头组成，搭载 YOLOv11n目标检测模型实现中场信号灯、敌对小车与打击区的识别与定位，其中模型推理和图像后处理由Hailo8 NPU实现硬件加速，保证高帧率、高实时性；目标追踪打击部分主要由二维云台、激光雷达与小功率激光模块组成，依据实时检测数据配合优化后的PID算法实现目标追踪、激光打击。视觉装置和智能车通过串口通信实现信息和状态的共享。
 
 内部结构
 <img width="894" height="965" alt="0b3017bb6d15486a69f0ad36ad44d702" src="https://github.com/user-attachments/assets/dca3706c-63cc-47e5-8c28-728db691a867" />
@@ -62,6 +59,7 @@ bash
 `python  ./Raspi-code/mian.py #启动程序`
 
 ### 代码结构
+
 -Raspi-code
 
 -----------[utils.py](https://github.com/BuPeiChiTang/The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense/blob/main/Raspi-code/utils.py "utils.py")#必要组件1
@@ -73,4 +71,32 @@ bash
 -----------[yolov11n.hef](https://github.com/BuPeiChiTang/The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense/blob/main/Raspi-code/yolov11n.hef "yolov11n.hef")#我们使用的目标识别模型
 
 -----------else
+
+## stm32部分
+
+### Dependence：
+
+1. 系统环境配置：使用cubeIDE/cubeMX进行配置，详见[官网](https://www.st.com/zh/development-tools/stm32cubeide.html)
+2. 硬件需求：STM32F103ZET6×1，STM32F103RET6×2，STM32F103C8T6×1
+
+### QuickStart
+
+1. 打开ioc文件，点击generate code
+2. 将文件夹下的.c.h文件复制到对应工程文件夹下，烧录进单片机运行
+
+### 代码结构
+
+1. servo：对应摄像头二维云台控制
+2. position：对应超声波模块读取位置
+3. car：小车运动控制
+4. generate control：与树莓派通信，发送开始停止指令
+
+
+
+
+
+
+
+
+
 
