@@ -33,9 +33,6 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 
 2.环境感知模块：该模块包含了测距模块，姿态与导航模块。测距模块采用超声波传感器，通过发送超声波并接受返回超声波测得小车位置；姿态与导航模块采用ICM20948，采集加速度、角速度、磁场数据，解算车体姿态角，计算运动轨迹。两模块所得数据互相矫正，共同作用得到更为准确的小车位置信息。
 
-内部结构
-<img width="894" height="965" alt="0b3017bb6d15486a69f0ad36ad44d702" src="https://github.com/user-attachments/assets/dca3706c-63cc-47e5-8c28-728db691a867" />
-
 3.驱动模块：TB6612电机驱动模块
 
 4.电源模块：采用 12V锂电池电源，为各模块提供稳定的电力支持，以确保系统正常运行。
@@ -45,6 +42,9 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 **（二）视觉装置部分**
 
 该部分由视觉识别部分与目标追踪打击部分构成。视觉识别部分主要由树莓派5，Hailo8 NPU和摄像头组成，搭载 YOLOv11n目标检测模型实现中场信号灯、敌对小车与打击区的识别与定位，其中模型推理和图像后处理由Hailo8 NPU实现硬件加速，保证高帧率、高实时性；目标追踪打击部分主要由二维云台与小功率激光模块组成，依据实时检测数据配合优化后的PID算法实现目标追踪、激光打击。视觉装置和智能车通过串口通信实现信息和状态的共享。
+
+内部结构
+<img width="894" height="965" alt="0b3017bb6d15486a69f0ad36ad44d702" src="https://github.com/user-attachments/assets/dca3706c-63cc-47e5-8c28-728db691a867" />
 
 # 代码说明
 
