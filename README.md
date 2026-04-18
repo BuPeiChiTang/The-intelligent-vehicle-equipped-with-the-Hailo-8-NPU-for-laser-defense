@@ -1,6 +1,6 @@
 # The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense
 n intelligent vehicle system for real-time laser combat with autonomous navigation, target recognition, tracking, and precision laser striking.
-
+# 摘要
 **本设计为实现实时激光对抗的智能车系统，目的是设计一款集成人工智能视觉处理等先进技术的精准避障、实时识别追踪的光电智能小车，使其具备自主寻迹避障、目标识别、目标追踪打击等功能，通过实时路径规划提高目标寻找和打击效率，实时检测敌方小车与打击区位置，实现高精度目标打击。**
 
 **系统由智能车部分和视觉装置部分组成。智能车部分包含主控模块、环境感知模块、驱动模块和电源模块。该部分主要运用了四元数算法，并结合磁场椭球拟合，对磁力计数据进行实时椭球校准，降低硬/软磁干扰，减少了偏航误差。驱动模块搭载串级PID算法，实现高精度运动控制。利用卡尔曼滤波，互补滤波等算法，改善数据平滑度，滤除噪声，提升数据解算的准确度。**
