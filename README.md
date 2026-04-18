@@ -57,5 +57,10 @@ bash
 `python  ./Raspi-code/mian.py #启动程序`
 
 ### 代码结构
-
+-Raspi-code
+-----------[utils.py](https://github.com/BuPeiChiTang/The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense/blob/main/Raspi-code/utils.py "utils.py")#必要组件1
+-----------[object\_detection\_utils\_final.py](https://github.com/BuPeiChiTang/The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense/blob/main/Raspi-code/object_detection_utils_final.py "object_detection_utils_final.py")#必要组件2
+-----------[mian.py](https://github.com/BuPeiChiTang/The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense/blob/main/Raspi-code/mian.py "mian.py")
+-----------[yolov11n.hef](https://github.com/BuPeiChiTang/The-intelligent-vehicle-equipped-with-the-Hailo-8-NPU-for-laser-defense/blob/main/Raspi-code/yolov11n.hef "yolov11n.hef")#我们使用的目标识别模型
+-----------else
 
