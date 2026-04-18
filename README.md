@@ -7,8 +7,8 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 # 目录
 
 1. 摘要
-2. 硬件系统组成
-3. 代码说明
+3. 硬件系统组成
+4. 代码说明
 
 # 摘要
 
