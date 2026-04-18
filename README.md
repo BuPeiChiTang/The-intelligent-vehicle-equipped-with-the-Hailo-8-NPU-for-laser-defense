@@ -33,6 +33,8 @@ an intelligent vehicle system for real-time laser combat with autonomous navigat
 3.驱动模块：TB6612电机驱动模块
 
 4.电源模块：采用 12V锂电池电源，为各模块提供稳定的电力支持，以确保系统正常运行。
+<img width="1095" height="612" alt="image" src="https://github.com/user-attachments/assets/07aeae36-f7c7-48b5-90b8-77e33de39353" />
+
 
 **（二）视觉装置部分**
 
